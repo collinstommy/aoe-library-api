@@ -1,0 +1,77 @@
+service: aoe-library-api
+
+custom:
+  tableName: 'aoe-library-table-${self:provider.stage}'
+  dynamodb:
+    start:
+      migrate: true
+    noStart: true
+    stages:
+      - ${self:provider.stage}
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  stage: dev
+  region: us-east-1
+  environment:
+    AOE_TABLE: ${self:custom.tableName}
+  iamRoleStatements:
+  - Effect: Allow
+    Action:
+      - dynamodb:Query
+      - dynamodb:Scan
+      - dynamodb:GetItem
+      - dynamodb:PutItem
+      - dynamodb:UpdateItem
+      - dynamodb:DeleteItem
+    Resource:
+      - { "Fn::GetAtt": ["AOELibraryDynamoDBTable", "Arn" ] }
+  
+
+functions:
+  app:
+    handler: index.handler
+    events:
+      - http:
+          path: / # this matches the base path
+          method: ANY
+      - http:
+          path: /{any+} # this matches any path, the token 'any' doesn't mean anything special
+          method: ANY
+  getUser:
+    handler: index.handler
+    events:
+      - http: 'GET /users/{proxy+}'
+  createUser:
+    handler: index.handler
+    events:
+      - http: 'POST /users'
+
+plugins:
+  - serverless-dynamodb-local
+  - serverless-offline
+
+resources:
+  Resources:
+    AOELibraryDynamoDBTable:
+      Type: 'AWS::DynamoDB::Table'
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: pk
+            AttributeType: S
+          -
+            AttributeName: sk
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: pk
+            KeyType: HASH
+          -
+            AttributeName: sk
+            KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: ${self:custom.tableName}
