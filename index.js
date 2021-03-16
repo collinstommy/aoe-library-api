@@ -1,5 +1,4 @@
 const serverless = require('serverless-http');
-const bodyParser = require('body-parser');
 const express = require('express');
 const cookieParser = require('cookie-parser');
 
@@ -7,7 +6,8 @@ const app = express();
 app.use(cookieParser());
 
 const AWS = require('aws-sdk');
-const { createToken, getTwitchId } = require('./lib/auth');
+const { createToken, isVerifiedUser } = require('./lib/auth');
+const { getVoteParams, getResourceKey, getTwitchKey } = require('./lib/db-helpers');
 
 // Make a request for a user with a given ID
 const { AOE_TABLE, IS_OFFLINE, CLIENT_HOST } = process.env;
@@ -19,13 +19,12 @@ if (IS_OFFLINE === 'true') {
   });
 }
 const dbClient = new AWS.DynamoDB.DocumentClient();
-const dynamodb = new AWS.DynamoDB();
 
 app.use(express.json());
 app.use(express.urlencoded());
 
-app.get('/', (req, res) => {
-  res.send('Hello World!');
+app.get('/health', (_, res) => {
+  res.send('Sever Running');
 });
 
 app.get('/votes', async (req, res) => {
@@ -71,20 +70,6 @@ app.get('/votes/:twitchId', async (req, res) => {
   }
 });
 
-app.delete('/table', () => {
-  const params = {
-    TableName: AOE_TABLE,
-  };
-
-  dynamodb.deleteTable(params, (err, data) => {
-    if (err) {
-      console.error('Unable to delete table. Error JSON:', JSON.stringify(err, null, 2));
-    } else {
-      console.log('Deleted table. Table description JSON:', JSON.stringify(data, null, 2));
-    }
-  });
-});
-
 app.get('/test', async (req, res) => {
   console.log({ body: req.body });
   console.log('Cookies: ', req.cookies);
@@ -107,23 +92,26 @@ app.get('/auth/twitch/callback', async (req, res) => {
   res.redirect(302, CLIENT_HOST);
 });
 
-app.delete('/votes', async (req, res) => {
-  const { twitchId, resourceId } = req.body;
-  const idFromToken = getTwitchId(req.cookies);
-  if (idFromToken !== twitchId) {
-    res.status(400).json({ error: 'Twitch user not authenticated' });
-    return;
-  }
-
-  const resourceKey = `resource#${resourceId}`;
-  const twitchKey = `twitch#${twitchId}`;
-
-  const params = {
+const updateVoteCount = async ({ resourceId, count }) => {
+  const updateTotal = {
     TableName: AOE_TABLE,
     Key: {
-      pk: twitchKey,
-      sk: resourceKey,
+      pk: 'TOTAL',
+      sk: getResourceKey(resourceId),
     },
+    UpdateExpression: 'ADD voteCount :inc',
+    ExpressionAttributeValues: { ':inc': count },
+    ReturnValues: 'ALL_NEW',
+  };
+
+  const { Attributes } = await dbClient.update(updateTotal).promise();
+  return Attributes.voteCount;
+};
+
+app.delete('/votes', isVerifiedUser, async (req, res) => {
+  const { twitchId, resourceId } = req.body;
+  const params = {
+    ...getVoteParams({ twitchId, resourceId }),
     ReturnValues: 'ALL_OLD',
   };
 
@@ -138,23 +126,12 @@ app.delete('/votes', async (req, res) => {
     return;
   }
 
-  const updateTotal = {
-    TableName: AOE_TABLE,
-    Key: {
-      pk: 'TOTAL',
-      sk: resourceKey,
-    },
-    UpdateExpression: 'ADD voteCount :inc',
-    ExpressionAttributeValues: { ':inc': -1 },
-    ReturnValues: 'ALL_NEW',
-  };
-
   try {
-    const { Attributes } = await dbClient.update(updateTotal).promise();
+    const voteCount = await updateVoteCount({ resourceId, count: -1 });
     res.json({
       twitchId,
       resourceId,
-      totalVotes: Attributes.voteCount,
+      totalVotes: voteCount,
     });
   } catch (error) {
     console.log(error);
@@ -162,26 +139,12 @@ app.delete('/votes', async (req, res) => {
   }
 });
 
-app.post('/votes', async (req, res) => {
+app.post('/votes', isVerifiedUser, async (req, res) => {
   const { twitchId, resourceId } = req.body;
-  const idFromToken = getTwitchId(req.cookies);
-  if (idFromToken !== twitchId) {
-    res.status(400).json({ error: 'Twitch user not authenticated' });
-    return;
-  }
 
-  const resourceKey = `resource#${resourceId}`;
-  const twitchKey = `twitch#${twitchId}`;
+  const params = getVoteParams({ resourceId, twitchId });
 
-  const findVote = {
-    TableName: AOE_TABLE,
-    Key: {
-      pk: twitchKey,
-      sk: resourceKey,
-    },
-  };
-
-  const found = await dbClient.get(findVote).promise();
+  const found = await dbClient.get(params).promise();
   if (found.Item) {
     res.status(400).json({ error: 'User has already votes for resource' });
     return;
@@ -190,30 +153,19 @@ app.post('/votes', async (req, res) => {
   const addVote = {
     TableName: AOE_TABLE,
     Item: {
-      pk: twitchKey,
-      sk: resourceKey,
+      pk: getTwitchKey(twitchId),
+      sk: getResourceKey(resourceId),
       type: 'vote',
     },
   };
 
-  const updateTotal = {
-    TableName: AOE_TABLE,
-    Key: {
-      pk: 'TOTAL',
-      sk: resourceKey,
-    },
-    UpdateExpression: 'ADD voteCount :inc',
-    ExpressionAttributeValues: { ':inc': 1 },
-    ReturnValues: 'ALL_NEW',
-  };
-
   try {
     await dbClient.put(addVote).promise();
-    const { Attributes } = await dbClient.update(updateTotal).promise();
+    const voteCount = await updateVoteCount({ resourceId, count: 1 });
     res.json({
       twitchId,
       resourceId,
-      totalVotes: Attributes.voteCount,
+      totalVotes: voteCount,
     });
   } catch (error) {
     console.log(error);
