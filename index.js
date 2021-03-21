@@ -24,7 +24,7 @@ app.use(express.json());
 app.use(express.urlencoded());
 
 app.get('/', (_, res) => {
-  res.send(`AOE Library API. Stage: ${process.env.STAGE} . Deployed.`);
+  res.send(`AOE Library API. Stage: ${process.env.STAGE} . Deployed on qa.`);
 });
 
 app.get('/dev/dev', (_, res) => {
