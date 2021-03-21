@@ -23,6 +23,18 @@ const dbClient = new AWS.DynamoDB.DocumentClient();
 app.use(express.json());
 app.use(express.urlencoded());
 
+app.get('/', (_, res) => {
+  res.send(`AOE Library API. Stage: ${process.env.STAGE}`);
+});
+
+app.get('/dev/dev', (_, res) => {
+  res.send(`AOE Library API. Stage: ${process.env.STAGE}`);
+});
+
+app.get('/dev', (_, res) => {
+  res.send(`AOE Library API. Stage: ${process.env.STAGE}`);
+});
+
 app.get('/health', (_, res) => {
   res.send('Sever Running');
 });

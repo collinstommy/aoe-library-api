@@ -12,10 +12,11 @@ custom:
 provider:
   name: aws
   runtime: nodejs12.x
-  stage: dev
+  stage: ${opt:stage, 'dev'}
   region: us-east-1
   environment:
     AOE_TABLE: ${self:custom.tableName}
+    STAGE: ${opt:stage, 'dev'}
   iamRoleStatements:
   - Effect: Allow
     Action:
