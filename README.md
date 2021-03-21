@@ -18,8 +18,6 @@ DEV
 ```
 npm run deploy
 ```
-
-
 https://xzxshfc9f3.execute-api.us-east-1.amazonaws.com/dev/
 
 
