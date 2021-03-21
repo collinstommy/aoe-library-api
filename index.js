@@ -24,11 +24,11 @@ app.use(express.json());
 app.use(express.urlencoded());
 
 app.get('/', (_, res) => {
-  res.send(`AOE Library API. Stage: ${process.env.STAGE}`);
+  res.send(`AOE Library API. Stage: ${process.env.STAGE} . Deployed.`);
 });
 
 app.get('/dev/dev', (_, res) => {
-  res.send(`AOE Library API. Stage: ${process.env.STAGE}`);
+  res.send(`AOE Library API. Stage: ${process.env.STAGE} . Deployed.`);
 });
 
 app.get('/dev', (_, res) => {
