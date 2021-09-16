@@ -1,0 +1,12 @@
+[
+  {
+    "pk": "TOTAL",
+    "sk": "resource#1",
+    "voteCount": "5"
+  },
+  {
+    "pk": "TOTAL",
+    "sk": "resource#2",
+    "voteCount": "3"
+  }
+]

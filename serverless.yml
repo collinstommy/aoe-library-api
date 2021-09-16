@@ -5,9 +5,20 @@ custom:
   dynamodb:
     start:
       migrate: true
+      seed: true
     noStart: true
     stages:
       - ${self:provider.stage}
+    seed:
+      domain:
+        sources:
+          - table: ${self:custom.tableName}
+            sources: [./seed.json]
+  seed:
+    mySeedName:
+      table: ${self:custom.tableName}
+      sources:
+        - seed.json
 
 provider:
   name: aws
@@ -52,6 +63,7 @@ functions:
 plugins:
   - serverless-dynamodb-local
   - serverless-offline
+  - serverless-dynamodb-seed
 
 resources:
   Resources:
